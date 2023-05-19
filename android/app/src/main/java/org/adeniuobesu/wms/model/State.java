@@ -1,8 +1,10 @@
 package org.adeniuobesu.wms.model;
 
-import androidx.annotation.NonNull;
+import java.io.Serializable;
 
-public class State {
+public class State implements Serializable {
+    private static final long serialVersionUID =1l;
+
     private int humidity;
     private int temperatureInCelsius;
 
@@ -26,7 +28,6 @@ public class State {
         return (temperatureInCelsius + 32);
     }
 
-    @NonNull
     @Override
     public String toString() {
         return "State=[celsius= " + temperatureInCelsius
