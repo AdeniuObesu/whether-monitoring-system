@@ -1,7 +1,12 @@
 package org.adeniuobesu.wms;
 
+import static androidx.core.app.ActivityCompat.startActivityForResult;
+
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
@@ -23,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
         referenceFields();
 
         submitBtn.setOnClickListener(new SubmitBtnListener());
+
     }
     private void checkBluetooth() {
         if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
@@ -35,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.ble_supported, Toast.LENGTH_LONG).show();
             finish();
         }
+
     }
     private void referenceFields() {
         fahrenheitView = findViewById(R.id.main_textview_fahrenheit);
