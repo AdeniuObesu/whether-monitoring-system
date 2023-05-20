@@ -1,7 +1,6 @@
 package org.adeniuobesu.wms;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.bluetooth.BluetoothManager;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
@@ -14,14 +13,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView fahrenheitView, celsiusView, humidityView;
     private EditText celsiusField, humidityField;
     private Button submitBtn;
-    private BluetoothFacade bluetooth;
+    private BluetoothService bluetooth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        bluetooth = new BluetoothFacade(this);
+        bluetooth = new BluetoothService(this);
         referenceFields();
 
         submitBtn.setOnClickListener(new SubmitBtnListener());

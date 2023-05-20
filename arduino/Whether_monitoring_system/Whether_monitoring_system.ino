@@ -2,7 +2,8 @@
 #include <SoftwareSerial.h>
 #include "Weather.h"
 
-Weather weather;
+Weather weather; // The current weather that the DHT11 reads.
+Weather weatherLimit; // The limit of weather received via Bluetooth.
 const byte rxPin = 9;
 const byte txPin = 8;
 SoftwareSerial BTSerial(rxPin, txPin); // RX TX
@@ -10,7 +11,7 @@ SoftwareSerial BTSerial(rxPin, txPin); // RX TX
 const char START_TOKEN = '?';
 const char END_TOKEN = ';';
 const char DELIMIT_TOKEN = '&';
-const int CHAR_TIMEOUT = 20;
+const int CHAR_TIMEOUT = 40;
 bool waitingForStartToken = true;
 String msgBuffer = "";
 
@@ -75,34 +76,36 @@ void loop() {
 
 void setWeatherLimits(String message){
   /*
-  Coming Message should in be in the format: h=xxx&t=xxx
+  Coming Message should in be in the format: Weather{ humidity=xxx, temperature=xxx}
   */
   int textCursor = 0;
-  String humidity_limit, temperature_celsius_limit;
-  if(message.startsWith("h=")){
+  String humidity_limit, temperature_limit;
+  if(message.startsWith("Weather{ humidity=")){
     // Correct starting message
-    textCursor = 2;
+    textCursor = 18;
     humidity_limit = getNextNumber(message, textCursor);
 
-    textCursor += humidity_limit.length() + 1;
+    textCursor += humidity_limit.length() + 2; // 2 to skip (comma and space).
     message = message.substring(textCursor);
   }
-  weather.set_humidity_limit(humidity_limit.toInt());
-  if(message.startsWith("t=")){
+  weatherLimit.set_humidity(humidity_limit.toInt());
+  if(message.startsWith("temperature=")){
     // Correct starting message
-    textCursor = 2;
-    temperature_celsius_limit = getNextNumber(message, textCursor);
-
-    textCursor += temperature_celsius_limit.length() + 1;
-    message = message.substring(textCursor);
+    textCursor = 12;
+    temperature_limit = getNextNumber(message, textCursor);
   }
-  weather.set_temperature_celsius_limit(temperature_celsius_limit.toInt());
+  weatherLimit.set_temperature(temperature_limit.toInt());
+  // DEBUG
+  // int h, t;
+  // h = weatherLimit.get_humidity();
+  // t = weatherLimit.get_temperature();
+  // Serial.println(h);
+  // Serial.println(t);
 }
 
 String getNextNumber(String text, int textCursor){
   String number = "";
-  while((text[textCursor] >= '0') && (text[textCursor] <= '9') && (textCursor < text.length())){
+  while((text[textCursor] >= '0') && (text[textCursor] <= '9') && (textCursor < text.length()))
     number += text[textCursor++];
-  }
   return number;
 }
