@@ -1,10 +1,22 @@
 #include "Arduino.h";
 #include <SoftwareSerial.h>
+#include <DHT.h>
+#include <Stepper.h>
 #include "Weather.h"
 # define PAUSE 3000
+#define Type DHT11
+int sensePin = 2;
+DHT HT(sensePin, Type);
+int setTime = 500;
+
+int stepsPerRevolution = 2048;
+Stepper myStepper(stepsPerRevolution, 7, 6, 5, 3);
+int motSpeed = 10;
+boolean closed = false;
+
 
 Weather weather; // The current weather that the DHT11 reads.
-Weather weatherLimit; // The limit of weather received via Bluetooth.
+Weather weatherLimit(55, 25); // The limit of weather received via Bluetooth.
 const byte rxPin = 9;
 const byte txPin = 8;
 SoftwareSerial BTSerial(rxPin, txPin); // RX TX
@@ -18,6 +30,8 @@ String msgBuffer = "";
 
 void setWeatherLimits(String);
 String getNextNumber(String, int);
+void compare_weather();
+void debug();
 
 void setup() {
   // define pin modes for tx, rx:
@@ -25,6 +39,9 @@ void setup() {
   pinMode(txPin, OUTPUT);
   BTSerial.begin(9600);
   Serial.begin(9600);
+  HT.begin();
+  myStepper.setSpeed(motSpeed);
+  delay(setTime);
 }
 
 String messageBuffer = "";
@@ -75,10 +92,59 @@ void loop() {
     delay(PAUSE);
     // Send the current weather to the device.
     BTSerial.write('~');
-    BTSerial.write(26);
-    BTSerial.write(30);
+    weather.set_humidity(HT.readHumidity());
+    weather.set_temperature(HT.readTemperature());
+    BTSerial.write(weather.get_humidity());
+    BTSerial.write(weather.get_temperature());
+    compare_weather();
   }
   
+}
+void debug() {
+  Serial.print("H=");
+  Serial.print(weather.get_humidity());
+  Serial.print(", C=");
+  Serial.println(weather.get_temperature());
+  Serial.print("Limits H=");
+  Serial.print(weatherLimit.get_humidity());
+  Serial.print(", C=");
+  Serial.println(weatherLimit.get_temperature());
+  Serial.print("And The Door is ");
+  if(closed) {
+    Serial.println("closed");
+  } else {
+    Serial.println("open");
+  }
+}
+void compare_weather() {
+  debug();
+  if(
+    ( weather.get_temperature() > weatherLimit.get_temperature()
+    || weather.get_humidity() > weatherLimit.get_humidity() )
+    && !closed){
+      close_door();
+      return;
+  }
+  if(weather.get_temperature() < weatherLimit.get_temperature()
+    && weather.get_humidity() < weatherLimit.get_humidity()
+    && closed){
+      open_door();
+      return;
+  }
+}
+
+void close_door() {
+  Serial.println("The door is closing...");
+  closed = true;
+  myStepper.step(stepsPerRevolution);
+  delay(setTime);
+}
+
+void open_door() {
+  Serial.println("The door is opening...");
+  closed = false;
+  myStepper.step(-stepsPerRevolution);
+  delay(setTime);
 }
 
 void setWeatherLimits(String message){

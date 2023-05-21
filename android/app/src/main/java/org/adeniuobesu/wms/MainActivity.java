@@ -44,6 +44,10 @@ public class MainActivity extends AppCompatActivity {
         celsiusView.setText(weather.getTemperatureInCelsius() + " °C");
         fahrenheitView.setText(weather.getTemperatureInFahrenheit() + " °F");
         // TODO : if the temperature or humidity exceeds the limit, show it in the activity
+        if(weather.getHumidity() > weatherLimit.getHumidity()
+            || weather.getTemperatureInCelsius() > weatherLimit.getTemperatureInCelsius()){
+
+        }
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
