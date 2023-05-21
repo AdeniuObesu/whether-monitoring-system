@@ -1,6 +1,7 @@
 #include "Arduino.h";
 #include <SoftwareSerial.h>
 #include "Weather.h"
+# define PAUSE 3000
 
 Weather weather; // The current weather that the DHT11 reads.
 Weather weatherLimit; // The limit of weather received via Bluetooth.
@@ -33,7 +34,7 @@ char dataByte;
 void loop() {
   // Handle bluetooth link
   char nextData;
-  if(BTSerial.available()) {
+  if(BTSerial.available() > 0) {
     // check for start of message
     if(waitingForStartToken){
       do{
@@ -70,13 +71,19 @@ void loop() {
         waitingForStartToken = true;
       }
     }
+  } else {
+    delay(PAUSE);
+    // Send the current weather to the device.
+    BTSerial.write('~');
+    BTSerial.write(26);
+    BTSerial.write(30);
   }
   
 }
 
 void setWeatherLimits(String message){
   /*
-  Coming Message should in be in the format: Weather{ humidity=xxx, temperature=xxx}
+  Coming Message should in be in the format: Weather{humidity=xxx,temperature=xxx}
   */
   int textCursor = 0;
   String humidity_limit, temperature_limit;

@@ -39,6 +39,12 @@ public class MainActivity extends AppCompatActivity {
 
     // Weather limit defined by the user and weather object received via bluetooth
     private Weather weather, weatherLimit;
+    private void changeWeather() {
+        humidityView.setText(weather.getHumidity() + "%");
+        celsiusView.setText(weather.getTemperatureInCelsius() + " °C");
+        fahrenheitView.setText(weather.getTemperatureInFahrenheit() + " °F");
+        // TODO : if the temperature or humidity exceeds the limit, show it in the activity
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,6 +60,9 @@ public class MainActivity extends AppCompatActivity {
                 switch (msg.what){
                     case STATUS:
                         System.out.println((String)(msg.obj));
+                        break;
+                    case 0:
+                        changeWeather();
                         break;
                 }
             }
@@ -123,11 +132,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void sendData(String data){
-        myBluetooth.writeByte((byte) '?');
-        for(byte b : weatherLimit.toString().getBytes(StandardCharsets.UTF_8)){
-            myBluetooth.writeByte(b);
-        }
-        myBluetooth.writeByte((byte) ';');
+        myBluetooth.writeBytes(("?" + weatherLimit.toString() + ";").getBytes(StandardCharsets.UTF_8));
     }
 
     // To use Bluetooth
@@ -144,6 +149,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String mac_address = "98:D3:21:F7:E7:74";
 
     private class MyBluetooth extends Thread {
+        // The store for the stream
+        private byte[] buffer;
         public void run() {
             boolean SOCKET_OK, CONX_OK, OUTS_OK, INPS_OK;
             // Create the bluetooth object HC05
@@ -151,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
             // Create a socket (pipeline) to communicate with HC05 module
             SOCKET_OK = true;
             try {
-                System.out.println(MY_UUID.toString());
                 socket = HC05.createInsecureRfcommSocketToServiceRecord(MY_UUID);
             } catch (Exception e) {
                 SOCKET_OK = false;
@@ -180,8 +186,25 @@ public class MainActivity extends AppCompatActivity {
                         my_handler.obtainMessage(STATUS, -1, -1, "Failed to create INTPUT stream !").sendToTarget();
                         INPS_OK = false;
                     }
-                    if (OUTS_OK && INPS_OK)
+                    if (OUTS_OK && INPS_OK){
+                        int numBytes; // bytes returned from read()
                         my_handler.obtainMessage(STATUS, -1, -1, "Connected").sendToTarget();
+                        buffer = new byte[7];
+                        // Keep listening to the InputStream until an exception occurs.
+                        while (true) {
+                            try {
+                                numBytes = readBytes(buffer);
+                                readWeather(buffer);
+                                Message readMsg = my_handler.obtainMessage(
+                                        0, numBytes, -1,
+                                        buffer);
+                                readMsg.sendToTarget();
+                            } catch (IOException e) {
+                                my_handler.obtainMessage(STATUS, -1, -1,e.getMessage()).sendToTarget();
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     my_handler.obtainMessage(STATUS, -1, -1, "Connection failed !").sendToTarget();
                 }
@@ -189,11 +212,19 @@ public class MainActivity extends AppCompatActivity {
                 my_handler.obtainMessage(STATUS, -1, -1, "Failed to create COMM socket !").sendToTarget();
             }
         }
-        void writeByte(byte b) {
+        private void readWeather(byte[] buffer) {
+            if((int) buffer[0] != (int)'~'){
+                // Tilda represents 126: a value that exceeds 100%
+                weather.setHumidity((int)buffer[0]);
+                weather.setTemperatureInCelsius((int)buffer[1]);
+                System.out.println(weather.toString());
+            }
+        }
+        void writeBytes(byte[] b) {
             try {
                 out.write(b);
             } catch (IOException e) {
-                my_handler.obtainMessage(STATUS, -1, -1,"Erreur dans writebyte").sendToTarget();
+                my_handler.obtainMessage(STATUS, -1, -1,"Error in writeBytes(byte[])").sendToTarget();
             }
         }
         int available() {
@@ -220,16 +251,13 @@ public class MainActivity extends AppCompatActivity {
                 return -1;
             }
         }
-        int readBytes(byte[] inputBuffer) {
+        int readBytes(byte[] inputBuffer) throws IOException{
             int b = 0;
             try {
                 b = in.read(inputBuffer);
-                // TODO : Delete the following line
-                System.out.println(">> Inside readBytes(byte[]) : " + b);
                 return b;
-            } catch (Exception e) {
-                my_handler.obtainMessage(STATUS, -1, -1,"Error in Reading").sendToTarget();
-                return 0;
+            } catch (IOException e) {
+                throw new IOException("Error in reading !");
             }
         }
 
