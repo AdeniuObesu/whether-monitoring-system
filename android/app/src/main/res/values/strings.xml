@@ -2,5 +2,4 @@
     <string name="app_name">Jardin intelligent</string>
     <string name="bluetooth_supported">Bluetooth is supported</string>
     <string name="ble_supported">Bluetooth Low Energy is supported</string>
-    <string name="bluetooth_device_name">HC-05</string>
 </resources>

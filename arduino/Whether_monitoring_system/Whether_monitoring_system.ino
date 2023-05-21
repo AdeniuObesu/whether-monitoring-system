@@ -33,12 +33,12 @@ char dataByte;
 void loop() {
   // Handle bluetooth link
   char nextData;
-  if(Serial.available()) {
+  if(BTSerial.available()) {
     // check for start of message
     if(waitingForStartToken){
       do{
-        nextData = Serial.read();
-      } while(nextData != START_TOKEN && Serial.available());
+        nextData = BTSerial.read();
+      } while(nextData != START_TOKEN && BTSerial.available());
       if(nextData == START_TOKEN){
         Serial.println("Message starts !");
         waitingForStartToken = false;
@@ -46,12 +46,12 @@ void loop() {
     }
 
     // Read command
-    if(!waitingForStartToken && Serial.available()){
+    if(!waitingForStartToken && BTSerial.available()){
       do{
-        nextData = Serial.read();
+        nextData = BTSerial.read();
         Serial.println(nextData);
         msgBuffer += nextData;
-      } while((nextData != END_TOKEN) && Serial.available());
+      } while((nextData != END_TOKEN) && BTSerial.available());
 
       // Check if message is complete
       if(nextData == END_TOKEN){
@@ -80,12 +80,13 @@ void setWeatherLimits(String message){
   */
   int textCursor = 0;
   String humidity_limit, temperature_limit;
-  if(message.startsWith("Weather{ humidity=")){
+  if(message.startsWith("Weather{humidity=")){
     // Correct starting message
-    textCursor = 18;
+    textCursor = 17;
     humidity_limit = getNextNumber(message, textCursor);
+    Serial.println("Limit for Humidity : " + humidity_limit);
 
-    textCursor += humidity_limit.length() + 2; // 2 to skip (comma and space).
+    textCursor += humidity_limit.length() + 1; // 1 to skip comma.
     message = message.substring(textCursor);
   }
   weatherLimit.set_humidity(humidity_limit.toInt());
@@ -93,14 +94,9 @@ void setWeatherLimits(String message){
     // Correct starting message
     textCursor = 12;
     temperature_limit = getNextNumber(message, textCursor);
+    Serial.println("Limit for Temperature : " + temperature_limit);
   }
   weatherLimit.set_temperature(temperature_limit.toInt());
-  // DEBUG
-  // int h, t;
-  // h = weatherLimit.get_humidity();
-  // t = weatherLimit.get_temperature();
-  // Serial.println(h);
-  // Serial.println(t);
 }
 
 String getNextNumber(String text, int textCursor){

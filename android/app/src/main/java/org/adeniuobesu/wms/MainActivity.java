@@ -1,29 +1,82 @@
 package org.adeniuobesu.wms;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.os.ParcelUuid;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.adeniuobesu.wms.model.Weather;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.UUID;
+
+@SuppressLint("MissingPermission")
 public class MainActivity extends AppCompatActivity {
     private TextView fahrenheitView, celsiusView, humidityView;
     private EditText celsiusField, humidityField;
     private Button submitBtn;
-    private BluetoothService bluetooth;
+    // MyBluetooth is an inner class that handles bluetooth connection,
+    // it is a thread that goes in parallel with the UI_Thread, and it gives us
+    // the possibility to add methods to handle communication between the two devices
+    // involved in the connection.
+    private MyBluetooth myBluetooth;
 
+    // Weather limit defined by the user and weather object received via bluetooth
+    private Weather weather, weatherLimit;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        bluetooth = new BluetoothService(this);
         referenceFields();
 
         submitBtn.setOnClickListener(new SubmitBtnListener());
+
+        // Define the handler
+        my_handler = new Handler(){
+            public void handleMessage(Message msg){
+                switch (msg.what){
+                    case STATUS:
+                        System.out.println((String)(msg.obj));
+                        break;
+                }
+            }
+        };
+
+        // Identify bluetooth module in the device
+        adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null) {
+            System.out.println("Pas d'interface Bluetooth");
+        } else {
+            // Device supports Bluetooth
+            if(!adapter.isEnabled())
+                enableBluetooth();
+            while (!adapter.isEnabled()) ; // Wait for bluetooth to start
+
+            // Create weather objects
+            weather = new Weather();
+            weatherLimit = new Weather(26, 35);
+
+            // Make bluetooth link
+            myBluetooth = new MyBluetooth();
+            myBluetooth.start();
+        }
 
     }
     private void checkBluetooth() {
@@ -53,14 +106,164 @@ public class MainActivity extends AppCompatActivity {
     private class SubmitBtnListener implements View.OnClickListener{
         @Override
         public void onClick(View view) {
-            int temperatureInCelsius, humidity;
+            int humidity, temperatureInCelsius;
             try {
-                temperatureInCelsius = Integer.parseInt(celsiusField.getText().toString());
                 humidity = Integer.parseInt(humidityField.getText().toString());
-                System.out.println("Humidity " + humidity + " Temperature : " + temperatureInCelsius);
+                temperatureInCelsius = Integer.parseInt(celsiusField.getText().toString());
+                weatherLimit.setHumidity(humidity);
+                weatherLimit.setTemperatureInCelsius(temperatureInCelsius);
+
+                // Send the new weather limit via bluetooth
+                sendData(weatherLimit.toString());
+
             } catch(Exception e){
-                System.out.println("Erreur : " + e.getMessage());
+                System.out.println("Error : " + e.getMessage());
             }
         }
+    }
+
+    private void sendData(String data){
+        myBluetooth.writeByte((byte) '?');
+        for(byte b : weatherLimit.toString().getBytes(StandardCharsets.UTF_8)){
+            myBluetooth.writeByte(b);
+        }
+        myBluetooth.writeByte((byte) ';');
+    }
+
+    // To use Bluetooth
+    private BluetoothAdapter adapter;
+    private BluetoothDevice HC05;
+    private BluetoothSocket socket;
+    private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+
+    private Handler my_handler;
+    private final static int STATUS = 1;
+
+    private OutputStream out = null;
+    private InputStream in = null;
+    private static final String mac_address = "98:D3:21:F7:E7:74";
+
+    private class MyBluetooth extends Thread {
+        public void run() {
+            boolean SOCKET_OK, CONX_OK, OUTS_OK, INPS_OK;
+            // Create the bluetooth object HC05
+            HC05 = adapter.getRemoteDevice(mac_address);
+            // Create a socket (pipeline) to communicate with HC05 module
+            SOCKET_OK = true;
+            try {
+                System.out.println(MY_UUID.toString());
+                socket = HC05.createInsecureRfcommSocketToServiceRecord(MY_UUID);
+            } catch (Exception e) {
+                SOCKET_OK = false;
+            }
+            if (SOCKET_OK) {
+                // Connect the socket
+                CONX_OK = true;
+                try {
+                    socket.connect();
+                } catch (IOException e) {
+                    CONX_OK = false;
+                    e.printStackTrace();
+                }
+                if (CONX_OK) {
+                    OUTS_OK = true;
+                    try {
+                        out = socket.getOutputStream();
+                    } catch (Exception e) {
+                        my_handler.obtainMessage(STATUS, -1, -1, "Failed to create OUTPUT stream !").sendToTarget();
+                        OUTS_OK = false;
+                    }
+                    INPS_OK = true;
+                    try {
+                        in = socket.getInputStream();
+                    } catch (Exception e) {
+                        my_handler.obtainMessage(STATUS, -1, -1, "Failed to create INTPUT stream !").sendToTarget();
+                        INPS_OK = false;
+                    }
+                    if (OUTS_OK && INPS_OK)
+                        my_handler.obtainMessage(STATUS, -1, -1, "Connected").sendToTarget();
+                } else {
+                    my_handler.obtainMessage(STATUS, -1, -1, "Connection failed !").sendToTarget();
+                }
+            } else {
+                my_handler.obtainMessage(STATUS, -1, -1, "Failed to create COMM socket !").sendToTarget();
+            }
+        }
+        void writeByte(byte b) {
+            try {
+                out.write(b);
+            } catch (IOException e) {
+                my_handler.obtainMessage(STATUS, -1, -1,"Erreur dans writebyte").sendToTarget();
+            }
+        }
+        int available() {
+            int b = 0;
+            try {
+                b = in.available();
+                // TODO : Delete the following line
+                System.out.println(">> Inside available() : " + b);
+                return b;
+            } catch (Exception e) {
+                my_handler.obtainMessage(STATUS, -1, -1,"Error in available").sendToTarget();
+                return -1;
+            }
+        }
+        int readByte() {
+            int b = 0;
+            try {
+                b = in.read();
+                // TODO : Delete the following line
+                System.out.println(">> Inside readByte() : " + b);
+                return b;
+            } catch (IOException e) {
+                my_handler.obtainMessage(STATUS, -1, -1,"Erreur dans readbyte").sendToTarget();
+                return -1;
+            }
+        }
+        int readBytes(byte[] inputBuffer) {
+            int b = 0;
+            try {
+                b = in.read(inputBuffer);
+                // TODO : Delete the following line
+                System.out.println(">> Inside readBytes(byte[]) : " + b);
+                return b;
+            } catch (Exception e) {
+                my_handler.obtainMessage(STATUS, -1, -1,"Error in Reading").sendToTarget();
+                return 0;
+            }
+        }
+
+        void disconnect() {
+            try {
+                socket.close();
+            } catch (Exception e) {
+                my_handler.obtainMessage(STATUS, -1, -1, "Failed to disconnect !").sendToTarget();
+            }
+        }
+    }
+
+
+    private void listUUIDs() {
+        if(HC05 != null ){
+            ParcelUuid[] uuids= HC05.getUuids();
+            for ( ParcelUuid uuid: uuids) {
+                System.out.println("UUID : " + uuid.getUuid());
+            }
+        } else {
+            System.out.println("Please check whether the appropriate device is paired or not !");
+        }
+    }
+    private void setPairedDevice() {
+//        Set<BluetoothDevice> pairedDevices;
+//        pairedDevices = adapter.getBondedDevices();
+//        for(BluetoothDevice device : pairedDevices){
+//            if(device.getName().equals(this.getString(R.string.bluetooth_device_name)))
+//                pairedDevice = device;
+//        }
+    }
+
+    private void enableBluetooth() {
+        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        this.startActivityForResult(enableBtIntent, 1);
     }
 }

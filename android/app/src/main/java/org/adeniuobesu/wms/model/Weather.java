@@ -2,11 +2,19 @@ package org.adeniuobesu.wms.model;
 
 import java.io.Serializable;
 
-public class State implements Serializable {
+public class Weather implements Serializable {
     private static final long serialVersionUID =1l;
 
     private int humidity;
     private int temperatureInCelsius;
+
+    public Weather() {
+        this(0, 0);
+    }
+    public Weather(int humidity, int temperatureInCelsius) {
+        this.humidity = humidity;
+        this.temperatureInCelsius = temperatureInCelsius;
+    }
 
     public int getHumidity() {
         return humidity;
@@ -30,9 +38,8 @@ public class State implements Serializable {
 
     @Override
     public String toString() {
-        return "State=[celsius= " + temperatureInCelsius
-                + ", fahrenheit= " + getTemperatureInFahrenheit()
-                + ", humidity= " + humidity
-                +"]";
+        return "Weather{humidity=" + humidity
+                + ",temperature=" + temperatureInCelsius
+                + "}";
     }
 }
