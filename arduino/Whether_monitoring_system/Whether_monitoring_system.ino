@@ -119,8 +119,8 @@ void debug() {
 void compare_weather() {
   debug();
   if(
-    ( weather.get_temperature() > weatherLimit.get_temperature()
-    || weather.get_humidity() > weatherLimit.get_humidity() )
+    ( weather.get_temperature() >= weatherLimit.get_temperature()
+    || weather.get_humidity() >= weatherLimit.get_humidity() )
     && !closed){
       close_door();
       return;
