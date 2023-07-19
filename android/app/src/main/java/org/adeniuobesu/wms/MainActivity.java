@@ -29,6 +29,7 @@ import java.util.UUID;
 @SuppressLint("MissingPermission")
 public class MainActivity extends AppCompatActivity {
     private TextView fahrenheitView, celsiusView, humidityView;
+    private TextView gardenInfoView, connectionInfoView;
     private EditText celsiusField, humidityField;
     private Button submitBtn;
     // MyBluetooth is an inner class that handles bluetooth connection,
@@ -42,12 +43,26 @@ public class MainActivity extends AppCompatActivity {
     private void changeWeather() {
         humidityView.setText(weather.getHumidity() + "%");
         celsiusView.setText(weather.getTemperatureInCelsius() + " °C");
-        fahrenheitView.setText(weather.getTemperatureInFahrenheit() + " °F");
+//        fahrenheitView.setText(weather.getTemperatureInFahrenheit() + " °F");
         // TODO : if the temperature or humidity exceeds the limit, show it in the activity
-        if(weather.getHumidity() >= weatherLimit.getHumidity()
-            || weather.getTemperatureInCelsius() >= weatherLimit.getTemperatureInCelsius()){
-
+        if(!closed){
+            if(weather.getHumidity() >= weatherLimit.getHumidity()
+                    || weather.getTemperatureInCelsius() >= weatherLimit.getTemperatureInCelsius())
+                closeDoor();
+        } else {
+            if(weather.getHumidity() < weatherLimit.getHumidity()
+                    && weather.getTemperatureInCelsius() < weatherLimit.getTemperatureInCelsius())
+                openDoor();
         }
+    }
+    private void closeDoor() {
+        gardenInfoView.setText("Le jardin est couvert ");
+        closed = true;
+    }
+    private boolean closed;
+    private void openDoor() {
+        gardenInfoView.setText("Le jardin est découvert");
+        closed = false;
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
             public void handleMessage(Message msg){
                 switch (msg.what){
                     case STATUS:
-                        System.out.println((String)(msg.obj));
+                        connectionInfoView.setText((String)(msg.obj));
                         break;
                     case 0:
                         changeWeather();
@@ -84,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
 
             // Create weather objects
             weather = new Weather();
-            weatherLimit = new Weather(26, 35);
+            weatherLimit = new Weather(55, 25);
 
             // Make bluetooth link
             myBluetooth = new MyBluetooth();
@@ -106,12 +121,15 @@ public class MainActivity extends AppCompatActivity {
 
     }
     private void referenceFields() {
-        fahrenheitView = findViewById(R.id.main_textview_fahrenheit);
+//        fahrenheitView = findViewById(R.id.main_textview_fahrenheit);
         celsiusView = findViewById(R.id.main_textview_celsuis);
         humidityView = findViewById(R.id.main_textview_humidity);
 
         humidityField = findViewById(R.id.main_edittext_humidity);
         celsiusField = findViewById(R.id.main_edittext_celsius);
+
+        gardenInfoView = findViewById(R.id.main_textview_gardeninfo);
+        connectionInfoView = findViewById(R.id.main_textview_connectioninfo);
 
         submitBtn = findViewById(R.id.main_button_submit);
     }
@@ -192,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     if (OUTS_OK && INPS_OK){
                         int numBytes; // bytes returned from read()
-                        my_handler.obtainMessage(STATUS, -1, -1, "Connected").sendToTarget();
+                        my_handler.obtainMessage(STATUS, -1, -1, "Connected to " + HC05.getName() + "(" + HC05.getAddress() + ")").sendToTarget();
                         buffer = new byte[7];
                         // Keep listening to the InputStream until an exception occurs.
                         while (true) {
@@ -200,8 +218,7 @@ public class MainActivity extends AppCompatActivity {
                                 numBytes = readBytes(buffer);
                                 readWeather(buffer);
                                 Message readMsg = my_handler.obtainMessage(
-                                        0, numBytes, -1,
-                                        buffer);
+                                        0, numBytes, -1, buffer);
                                 readMsg.sendToTarget();
                             } catch (IOException e) {
                                 my_handler.obtainMessage(STATUS, -1, -1,e.getMessage()).sendToTarget();
